@@ -1,0 +1,223 @@
+<?php
+
+/**
+ * Get vocabulary ID for CCSSI vocabulary
+ */
+function _ccssi_vid() {
+  $vid = variable_get('ccssi_vid', 0);
+
+  if (!$vid) {
+    $v = taxonomy_vocabulary_machine_name_load('ccssi');
+    if ($v) {
+      $vid = $v->vid;
+    }
+  }
+
+  return $vid;
+}
+
+/**
+ * Initialize the CCSSI vocabulary if necessary
+ */
+function ccssi_cron() {
+  $stored_vid = variable_get('ccssi_vid', 0);
+  $vid = _ccssi_vid();
+
+  if ($stored_vid != $vid) {
+    // delete existing terms
+    $tids = db_select('taxonomy_term_data', 't')
+      ->fields('t', array('tid'))
+      ->condition('vid', $vid)
+      ->execute()->fetchCol();
+    
+    foreach ($tids as $tid) {
+      taxonomy_term_delete($tid);
+    }
+    
+    // import new terms
+    ccssi_import_csv_flat(drupal_get_path('module', 'ccssi') . '/E0607_ccss_identifiers.csv');
+
+    variable_set('ccssi_vid', $vid);
+  }
+}
+
+/**
+ * Import terms from CSV, flat-style.
+ *
+ * The resulting vocabulary has one term for each item in the
+ * standards; each term is named according to its "dot" notation,
+ * with the first field 'CCSS' removed.
+ */
+function ccssi_import_csv_flat($file) {
+  // the CCSSI csv file uses "^M" mac-style line endings
+  ini_set("auto_detect_line_endings", TRUE);
+
+  $csv = fopen($file, 'r');
+  // TODO: throw error if open failed
+  while ($csv && $row = fgetcsv($csv)) {
+    // Identify columns
+    $term_info['uri'] = $row[2];
+    $term_info['dots'] = $row[1];
+    $term_info['guid'] = $row[3];
+    $term_info['vid'] = _ccssi_vid();
+    $lineage = explode('.', $row[1]);
+    $root_term = array_shift($lineage);
+
+    // Make sure this is part of the CCSS vocabulary
+    if ($root_term != 'CCSS') {
+      // TODO: throw error here
+      print 'root term is '. $root_term ."\n";
+      continue;
+    }
+    
+    print 'lineage: '. implode('.', $lineage) ."\n";
+    ccssi_make_term_flat($lineage, $term_info);
+  }
+}
+
+/**
+ * Create a term in the flat style
+ */
+function ccssi_make_term_flat($lineage, $term_info) {
+  $term_name = implode('.', $lineage);
+  ccssi_make_term_with_parent($term_name, 0, $term_info);
+}
+
+/**
+ * Import terms from CSV in hierarchy
+ *
+ * The resulting vocabulary has terms for each level of
+ * the hierarchy, named according to the part of the 
+ * 'dot' notation. It's mostly useless.
+ *
+ * Example: Math.Content.HSA-APR.B.3
+ *   - CCSS
+ *     - Math
+ *       - Content
+ *         - 1
+ *           - HSA-APR
+ *             - B
+ *               - 3
+ *
+ * The deepest-level term has the URI and GUID in fields.
+ */
+function ccssi_import_csv($file) {
+  // the CCSSI csv file uses "^M" mac-style line endings
+  ini_set("auto_detect_line_endings", TRUE);
+
+  $csv = fopen($file, 'r');
+  // TODO: throw error if open failed
+  while ($csv && $row = fgetcsv($csv)) {
+    // Identify columns
+    $term_info = array();
+    $term_info['uri'] = $row[2];
+    $term_info['dots'] = $row[1];
+    $term_info['guid'] = $row[3];
+    $lineage = explode('.', $row[1]);
+
+    // Make sure this is part of the CCSS vocabulary
+    $root_term = array_shift($lineage);
+    if ($root_term != 'CCSS') {
+      // TODO: throw error here
+      print 'root term is '. $root_term ."\n";
+      continue;
+    }
+
+    // Determine vid from Math vs ELA-Literacy
+    $vocab_name = array_shift($lineage);
+    if ($vocab_name == 'Math') {
+      $term_info['vid'] = variable_get('ccssi_math_vid', 0);
+    }
+    elseif ($vocab_name == 'ELA-Literacy') {
+      $term_info['vid'] = variable_get('ccssi_ela_vid', 0);
+    }
+    else {
+      print 'domain is unknown: '. $vocab_name ."\n";
+      continue;
+    }
+    
+    print 'lineage: '. implode('.', $lineage) ."\n";
+    ccssi_make_term_recursive($lineage, $term_info);
+  }
+}
+
+/**
+ * Create the term represented by $term_lineage, along with all
+ * its parents.
+ *
+ * @return term id of (possibly new) term
+ */
+function ccssi_make_term_recursive($term_lineage, $term_info) {
+  // TODO: use drupal_static, etc
+  $existing_terms =& drupal_static('ccssi_terms', array());
+
+  $term_lookup = implode('.', $term_lineage);
+  if (!isset($existing_terms[$term_lookup])) {
+    $term_name = array_pop($term_lineage);
+    if (count($term_lineage)) {
+      $parent_tid = ccssi_make_term_recursive($term_lineage, array('vid' => $term_info['vid'], 'dots' => implode('.', $term_lineage)));
+    }
+    else {
+      $parent_tid = 0;
+    }
+    $tid = ccssi_make_term_with_parent($term_name, $parent_tid, $term_info);
+    $existing_terms[$term_lookup] = $tid;
+  }
+  
+  return $existing_terms[$term_lookup];
+}
+
+/**
+ * Create a term with the specified parent tid
+ */
+function ccssi_make_term_with_parent($term_name, $parent_tid, $term_info) {
+  // make term with parent, add uri & guid if exist
+  $term = new stdClass;
+  $term->name = $term_name;
+  $term->parent = $parent_tid;
+  $term->description = $term_info['dots'];
+  $term->vid = $term_info['vid'];
+
+  if (isset($term_info['uri'])) {
+    $term->field_uri['und'][0]['value'] = $term_info['uri']; 
+  }
+  if (isset($term_info['guid'])) {
+    $term->field_guid['und'][0]['value'] = $term_info['guid']; 
+  }
+  
+  taxonomy_term_save($term);
+  print 'Added term '. $term->tid .': '. $term->description ."\n";
+  return $term->tid;
+}
+
+/**
+ * Implementation of hook_query_TAG_alter()
+ *
+ * Alter the autocomplete query to do faux-hierarchical searching
+ * (not complete or functional)
+ */
+ /*
+function ccssi_query_term_access_alter($query) {
+  return;
+  dpm($query->getFields(), 'fields');
+  $fields =& $query->getFields();
+  $conditions =& $query->conditions();
+  dpm($conditions, 'conditions');
+  foreach ($conditions as $cond) {
+    if ($cond['field'] == 't.vid') { 
+      if (is_array($cond['value']) && count($cond['value']) == 1 && $cond['value'][0] == variable_get('ccssi_vid')) {
+        $ccssi_query = TRUE;
+      }
+      elseif (is_numeric($cond['value']) && $cond['value'] == variable_get('ccssi_vid')) {
+        $ccssi_query = TRUE;
+      }
+    }
+    elseif ($cond['field'] == 't.name') {
+      // search term is in value field here, between two '%' signs
+    }
+  }
+
+  // add Expression for substring based on number of periods
+  // add groupBy on that expression
+}
+/**/

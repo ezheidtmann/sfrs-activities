@@ -1,0 +1,11 @@
+
+name = Fuzzy Search
+description = "Fuzzy search engine for Search API"
+dependencies[] = search_api
+core = 7.x
+package = Search
+
+files[] = includes/service.inc
+files[] = includes/fuzzysearch.default.inc
+files[] = includes/processor_search.inc
+files[] = includes/processor_excerpt.inc

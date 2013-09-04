@@ -1,0 +1,14 @@
+name = CCSSI vocabulary importer
+description = Adds a vocabulary for the Common Core State Standards
+core = 7.x
+package = S4RS
+php = 5.2.4
+version = 1.x
+dependencies[] = features
+dependencies[] = field_sql_storage
+dependencies[] = taxonomy
+dependencies[] = text
+features[features_api][] = api:1
+features[field][] = taxonomy_term-ccssi-field_guid
+features[field][] = taxonomy_term-ccssi-field_uri
+features[taxonomy][] = ccssi

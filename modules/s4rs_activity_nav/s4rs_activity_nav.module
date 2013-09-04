@@ -1,0 +1,20 @@
+<?php
+/**
+ * @file
+ * Code for the S4RS Activity Navigation feature.
+ */
+
+/**
+ * Setup function for breadcrumbs.
+ *
+ * Ensure the first two breadcrumbs are set up to provide activity navigation.
+ *
+ * @see breadcrumb_setup.sql
+ */
+function s4rs_activity_nav_breadcrumb_setup() {
+  db_query("REPLACE INTO `custom_breadcrumb` VALUES 
+    (1,'S4RS Activity Pages','Activities','activity-search','','s4rs_activity',''),
+    (2,'S4RS Activity Extension Pages[node:field-parent-activity:title]','Activities\r\n[node:field-parent-activity:title]','activity-search\r\n[node:field-parent-activity:url]','','extension_activity','')");
+}
+
+include_once 's4rs_activity_nav.features.inc';

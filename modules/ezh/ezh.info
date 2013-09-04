@@ -1,0 +1,26 @@
+name = EZH Tweaks
+description = Tweaks specific to this site
+package = S4RS
+version = 1.x
+core = 7.x
+
+dependencies[] = s4rs_activity_nav
+dependencies[] = s4rs_activity_search
+dependencies[] = s4rs_activity_search_views
+dependencies[] = s4rs_activity_type
+dependencies[] = s4rs_activity_workflow
+dependencies[] = su_comments
+dependencies[] = custom_breadcrumbs
+dependencies[] = timeperiod
+dependencies[] = flag
+dependencies[] = chosen
+dependencies[] = commentaccess
+dependencies[] = revisioning_ux
+dependencies[] = revisioning
+dependencies[] = role_export
+dependencies[] = rules
+dependencies[] = stickythreads
+dependencies[] = ccssi
+dependencies[] = search_api_db
+dependencies[] = autocomplete_deluxe
+dependencies[] = termcase

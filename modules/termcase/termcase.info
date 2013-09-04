@@ -1,0 +1,4 @@
+name = Termcase
+description = "Enable text case settings per taxonomy (lowercase, uppercase or only the first character uppercase)"
+core = 7.x
+dependencies[] = taxonomy

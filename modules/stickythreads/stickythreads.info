@@ -1,0 +1,9 @@
+name = Sticky Threads
+description = Enables threads sorted by sticky flag, and flag access
+package = S4RS
+version = 1.x
+core = 7.x
+
+dependencies[] = flag
+dependencies[] = s4rs_activity_type
+

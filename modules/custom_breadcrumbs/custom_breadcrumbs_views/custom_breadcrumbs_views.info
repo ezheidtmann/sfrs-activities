@@ -1,0 +1,10 @@
+name = Custom breadcrumbs for views
+package = Custom breadcrumbs
+dependencies[] = custom_breadcrumbs
+dependencies[] = views
+description = Provides custom breadcrumbs for views pages.
+core = 7.x
+configure = admin/config/user-interface/custom-breadcrumbs
+
+files[] = custom_breadcrumbs_views.install
+files[] = custom_breadcrumbs_views.module

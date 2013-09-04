@@ -1,0 +1,12 @@
+name = Custom breadcrumbs for paths
+package = Custom breadcrumbs
+dependencies[] = custom_breadcrumbs
+description = Provides custom breadcrumbs for specific paths.
+core = 7.x
+configure = admin/config/user-interface/custom-breadcrumbs
+
+
+
+
+files[] = custom_breadcrumbs_paths.install
+files[] = custom_breadcrumbs_paths.module

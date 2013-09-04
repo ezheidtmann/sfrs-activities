@@ -1,0 +1,8 @@
+name = Custom breadcrumbs identifiers
+package = Custom breadcrumbs
+description = Provides special identifiers for custom breadcrumbs.
+dependencies[] = custom_breadcrumbs
+core = 7.x
+configure = admin/config/user-interface/custom-breadcrumbs
+
+files[] = custom_breadcrumbs_identifiers.module

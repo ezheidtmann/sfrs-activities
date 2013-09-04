@@ -1,0 +1,144 @@
+<?php
+
+/**
+ * Implementation of hook_permission()
+ */
+function stickythreads_permission() {
+  return array(
+    'administer sticky comments' => array(
+      'title' => t('Administer sticky comments'),
+      'description' => t('Manage "sticky" flag on all comments')
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_flag_access()
+ */
+function stickythreads_flag_access($flag, $content_id, $action, $account) {
+  if ($flag->name == 'comment_sticky' && user_access('administer sticky comments', $account)) {
+    return TRUE;
+  }
+}
+
+/**
+ * Implementation of hook_flag_access_multiple()
+ */
+function stickythreads_flag_access_multiple($flag, $content_ids, $account) {
+  $access = array();
+
+  if ($flag->name == variable_get('stickythreads_flag_name', 'comment_sticky') && user_access('administer sticky comments', $account)) {
+    $access = array_fill_keys($content_ids, TRUE);
+  }
+
+  return $access;
+}
+
+/**
+ * Update stickythreads table for all comments on the node $nid.
+ */
+function stickythreads_update_for_nid($nid) {
+  db_delete('stickythreads')
+    ->condition('nid', $nid)
+    ->execute();
+
+  $flag = flag_get_flag(variable_get('stickythreads_flag_name', 'comment_sticky'));
+  $query = db_select('comment', 'c');
+  $query->innerJoin('flag_content', 'fc', 'fc.content_id = c.cid AND fc.fid = '. $flag->fid);
+  $threads = $query->fields('c', array('thread'))
+    ->condition('c.nid', $nid)
+    ->orderBy('c.thread', 'ASC') // get children first
+    ->execute()->fetchCol();
+
+  foreach ($threads as $thread) {
+    $thread_prefix = rtrim($thread, '/');
+    $cids = db_select('comment', 'c')
+      ->fields('c', array('cid'))
+      ->condition('c.nid', $nid)
+      ->where("SUBSTRING(c.thread, 1, ". strlen($thread_prefix) .") = '". $thread_prefix ."'")
+      ->execute()->fetchCol();
+
+    foreach ($cids as $cid) {
+      db_merge('stickythreads')
+        ->key(array('cid' => $cid))
+        ->fields(array(
+          'parent_depth' => count(explode('.', $thread_prefix)) - 1,
+          'nid' => $nid,
+          'stickytree' => 1,
+        ))
+        ->execute();
+    }
+
+  }
+}
+
+/**
+ * Implementation of hook_query_TAG_alter()
+ *
+ * Disable the comment.module comment rendering, add a join for this
+ * module's comment rendering
+ */
+function stickythreads_query_comment_filter_alter(QueryAlterableInterface $q) {
+  $node = $q->getMetaData('node');
+  if (isset($node) && $node->type == 's4rs_activity') {
+    $orders =& $q->getOrderBy();
+    if (count($orders)) { // exclude count queries
+      $q->leftJoin('stickythreads', 'st', 'st.cid = c.cid');
+      $orders = array('st.stickytree' => 'DESC') + $orders;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_comment_load()
+ *
+ * Reduce 'thread' field so that comment depth & divs are set right
+ * for theming.
+ */
+function stickythreads_comment_load($comments) {
+  $flag = flag_get_flag(variable_get('stickythreads_flag_name', 'comment_sticky'));
+  $query = db_select('stickythreads', 'st');
+  $query->leftJoin('flag_content', 'fc', 'fc.content_id = st.cid AND fc.fid = '. $flag->fid);
+  $rows = $query->fields('st', array('cid', 'parent_depth'))
+    ->fields('fc', array('fid'))
+    ->condition('cid', array_keys($comments), 'IN')
+    ->execute()->fetchAll();
+
+  foreach ($rows as $row) {
+    $thread = explode('.', $comments[$row->cid]->thread);
+    $comments[$row->cid]->thread = implode('.', array_slice($thread, $row->parent_depth));
+    if ($row->fid) {
+      $comments[$row->cid]->stickythreads_sticky = TRUE;
+    }
+  }
+}
+
+/**
+ * Implementation of hook_comment_view_alter
+ */
+function stickythreads_preprocess_comment(&$variables) {
+  if (isset($variables['comment']->stickythreads_sticky)) {
+    $variables['classes_array'][] = 'stickythreads-sticky';
+  }
+}
+
+/**
+ * Implementation of hook_comment_presave
+ *
+ * TODO: save cycles by only re-doing subtree from comment id, not whole node
+ */
+function stickythreads_comment_presave($comment) {
+  stickythreads_update_for_nid($comment->nid);
+}
+
+/**
+ * Implementation of hook_flag
+ *
+ * TODO: save cycles by only re-doing subtree from comment id, not whole node
+ */
+function stickythreads_flag($op, $flag, $content_id, $account, $fcid) {
+  if ($flag->name == variable_get('stickythreads_flag_name', 'comment_sticky')) {
+    $comment = comment_load($content_id);
+    stickythreads_update_for_nid($comment->nid);
+  }
+}

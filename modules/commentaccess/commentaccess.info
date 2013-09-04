@@ -1,0 +1,8 @@
+name = "Comment Access"
+description = "Provides additional permissions for comments."
+core = 7.x
+dependencies[] = comment
+files[] = commentaccess.install
+files[] = commentaccess.module
+files[] = commendaccess.admin.inc
+configure = admin/config/content/commentaccess

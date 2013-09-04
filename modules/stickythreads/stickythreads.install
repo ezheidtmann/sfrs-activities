@@ -1,0 +1,37 @@
+<?php
+
+function stickythreads_schema() {
+  $schema = array();
+  $schema['stickythreads'] = array(
+    'description' => 'Table maintaining order of comments, sticky trees first',
+    'fields' => array(
+      'cid' => array(
+        'description' => 'Drupal Comment ID',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'nid' => array(
+        'description' => 'Drupal Node ID',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'parent_depth' => array(
+        'description' => 'Depth attribute of highest ancestor',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+      'stickytree' => array(
+        'description' => 'Whether this comment is part of a sticky tree',
+        'type' => 'int',
+        'unsigned' => TRUE,
+        'not null' => TRUE,
+      ),
+    ),
+    // TODO: indexes?
+  );
+
+  return $schema;
+}

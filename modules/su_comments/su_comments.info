@@ -1,0 +1,6 @@
+name = Show unpublished comments
+description = Show unpublished comments to the authors.
+core = 7.x
+dependencies[] = comment
+package = Comment
+

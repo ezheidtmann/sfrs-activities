@@ -1,0 +1,221 @@
+<?php
+
+/**
+ * Implementation of hook_block_info()
+ */
+function ezh_block_info() {
+  return array(
+    'revisioning_messages' => array(
+      'info' => t('S4RS Revisioning messages'),
+      'cache' => DRUPAL_CACHE_PER_USER,
+      'status' => NULL,
+      'region' => NULL,
+      'visibility' => BLOCK_VISIBILITY_LISTED,
+      'pages' => 'node/*',
+    ),
+  );
+}
+
+/**
+ * Implementation of hook_block_view
+ */
+function ezh_block_view($delta = '') {
+  switch ($delta) {
+    case 'revisioning_messages':
+      return ezh_block_revisioning_messages();
+      break;
+  }
+}
+
+/**
+ * Generate the "revisioning messages" block
+ */
+function ezh_block_revisioning_messages() {
+  $block = array('subject' => '', 'content' => '');
+
+  if (arg(0) == 'node' && is_numeric(arg(1)) && (arg(2) == '' || arg(2) == 'view')) {
+    $node = node_load(arg(1));
+    if (isset($node)) {
+      // display a message if the user is seeing an unpublished node
+      if ($node->status == 0 && node_access('view', $node)) {
+        $block['content'] = t('<p>Please note: This activity is not yet published, pending approval by Solar4RSchools staff.</p>');
+      }
+
+      // display a message if the user is seeing a more recent revision than
+      // what is visible to the public
+      $load_op = _revisioning_load_op($node, 'view');
+      if ($load_op == REVISIONING_LOAD_LATEST) {
+        // the user is seeing the "view latest" tab
+        $block['content'] = t('<p>Please note: This revision is not yet published, pending approval by Solar4RSchools staff.</p><p>An earlier revision is still visible to other users. Click the <em>Revisions</em> tab to view all revisions.</p>');
+      }
+    }
+  }
+
+  return $block;
+}
+
+/**
+ * Implementation of hook_node_view
+ *
+ * Set $node->status to zero if it's a pending revision, so the div gets the
+ * CSS class 'node-unpublished'
+ */
+function ezh_node_view($node, $view_mode) {
+  if ($node->revision_moderation && $node->is_pending) {
+    $node->status = 0;
+    //drupal_set_message(t('Please note: This revision is not yet published, pending approval by Solar4RSchools staff.'));
+  }
+}
+
+/**
+ * Implementation of hook_help
+ */
+function ezh_help($path, $arg) {
+  switch ($path) {
+    case 'node/%/revisions/list':
+      return node_help('node/%/revisions', $arg) . revisioning_help('node/%/revisions', $arg);
+    case 'node/%/revisions/%/list':
+      return t('<p>This table lists all the revisions of this @type. The <em>current</em> revision, highlighted in yellow, is visible to all visitors. Any other revisions are visible only to the author and to S4RS administrators.</p><p>TODO: improve this message.</p>',
+        array('@type' => node_type_get_name(node_load($arg[1]))));
+  }
+}
+
+/**
+ * Implements hook_facetapi_facet_info_alter()
+ *
+ * Add our value callback for the field_grade_level facet
+ */
+function ezh_facetapi_facet_info_alter(&$facet_info, &$searcher_info) {
+  $facet_info['field_grade_level']['map options']['value callback'] = '_ezh_grade_level_label';
+}
+
+/**
+ * Value callback for field_grade_level facet
+ *
+ * @see ezh_facetapi_facet_info_alter()
+ */
+function _ezh_grade_level_label($values, $options) {
+  // first call the default label value callback
+  $map = _search_api_facetapi_facet_create_label($values, $options);
+
+  // rename as appropriate
+  foreach ($map as &$label) {
+    if ($label == 'K') {
+      $label = t('Kindergarten');
+    }
+    else {
+      $label = t('Grade @g', array('@g' => $label));
+    }
+  }
+
+  return $map;
+}
+
+/**
+ * Implements hook_field_widget_form_alter()
+ */
+function ezh_field_widget_form_alter(&$element, &$form_state, $context) {
+  switch ($context['field']['field_name']) {
+    // Add placeholder text, used by 'chosen'
+    case 'field_ccssi_terms':
+      $element['#attributes']['data-placeholder'] = t('Click to add a standard');
+      break;
+    case 'field_science_kit_components':
+      $element['#attributes']['data-placeholder'] = t('Click to add a component');
+      break;
+    case 'field_subject_areas':
+      $element['#attributes']['data-placeholder'] = t('Click to add a subject area');
+      break;
+    case 'field_grade_level':
+      $element['#attributes']['data-placeholder'] = t('Click to add a grade level');
+      break;
+
+    case 'field_learning_goals':
+    case 'field_materials':
+      // Add appropriate title and title_display for multi-valued widgets
+      // @see http://drupal.org/node/980144 patch #12
+      // We act only on these named widgets to avoid unknowingly breaking
+      // other widgets
+      $multiple = $context['field']['cardinality'] > 1 || $context['field']['cardinality'] == FIELD_CARDINALITY_UNLIMITED;
+      if ($multiple && is_array($element['value'])) {
+        // The general fix (linked issue) adds delta for screen readers, but we
+        // don't do that so the failed #required message reads better.
+        $element['value']['#title'] = check_plain($context['instance']['label']);
+        $element['value']['#title_display'] = 'invisible';
+      }
+      break;
+  }
+
+}
+
+/**
+ * Implementation of hook_form_FORM_ID_alter()
+ *
+ * Disable commentaccess settings form widgets. We take care of all that
+ * stuff with global permissions and rules.
+ */
+function ezh_form_user_profile_form_alter(&$form, &$form_state) {
+  // Query non-existent variable, so client can get their widgets back if they want
+  if (variable_get('s4rs_disable_comment_access', TRUE) && isset($form['commentaccess_settings'])) {
+    $form['commentaccess_settings']['#access'] = FALSE;
+  }
+}
+
+/**
+ * Implementation of hook_facetapi_url_processors()
+ *
+ * We are intentionally overriding the standard url processor to set
+ * our desired breadcrumb trail on search pages
+ */
+function ezh_facetapi_url_processors() {
+  return array(
+    'activity_search' => array(
+      'handler' => array(
+        'label' => t('Activity Search URL processor'),
+        'class' => 'FacetApiUrlProcessorActivitySearch',
+      ),
+    ),
+  );
+}
+
+/**
+ * Implements hook_facetapi_searcher_info_alter
+ *
+ * The url processor is not configurable, so we have to do it here.
+ */
+function ezh_facetapi_searcher_info_alter(&$searcher_info) {
+  if (isset($searcher_info['search_api@activity_index'])) {
+    $searcher_info['search_api@activity_index']['url processor'] = 'activity_search';
+  }
+}
+
+class FacetApiUrlProcessorActivitySearch extends FacetapiUrlProcessorStandard {
+  function setBreadcrumb() {
+    parent::setBreadcrumb();
+    $breadcrumb = drupal_get_breadcrumb();
+    if ($breadcrumb[1] == '[all items]') {
+      // If the last element is a plain text "[all items]", then this is the home
+      // page of the activity search and we want the last element to be a plain
+      // text Activities.
+      $breadcrumb[1] = t('Activities');
+    }
+    else {
+      // Otherwise, there is an active search.
+      // Home link is first, so we want to insert Activities as
+      // the second link.
+      $insert = array(l(t('Activities'), 'activity-search'));
+      array_splice($breadcrumb, 1, 0, $insert);
+    }
+
+    // The [all items] link indicates that there is no keyword search, so it
+    // does not add information. Get rid of it.
+    foreach ($breadcrumb as $delta => $crumb) {
+      if (strpos($crumb, '[all items]') !== FALSE) {
+        unset($breadcrumb[$delta]);
+      }
+    }
+
+    drupal_set_breadcrumb($breadcrumb);
+  }
+}
+

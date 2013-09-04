@@ -1,0 +1,3 @@
+name = Role Export
+description = Exportable user roles with role machine names.
+core = 7.x

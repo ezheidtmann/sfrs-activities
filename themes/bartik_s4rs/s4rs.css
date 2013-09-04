@@ -1,0 +1,31 @@
+/* Add pink background to unpublished nodes */
+.node-unpublished > .content,
+.node-unpublished > .attribution {
+  background-color: #fff4f4;
+}
+
+/* Style the revisioning messages block */
+#block-ezh-revisioning-messages {
+  background-color: #ffc;
+  padding: 5px 10px 15px 10px;
+}
+
+/* Make sticky comments stand out */
+.comment.stickythreads-sticky {
+  background-color: #ffc;
+}
+
+/* Make select widgets full-width before they are overridden by 'Chosen'. */
+/* (this is the same selector as used in the Chosen jQuery settings) */
+.node-form .field-type-taxonomy-term-reference select {
+  width: 100%;
+}
+
+/* Apply standard error styling to chosen widgets */
+/* Relies on s4rs.js to apply this class */
+div.js-inherited-error {
+  border: 2px solid red;
+}
+
+/* Apply standard error styling to autocomplete_deluxe widget */
+/* (it's overridden in autocomplete_deluxe.css line 130) */
